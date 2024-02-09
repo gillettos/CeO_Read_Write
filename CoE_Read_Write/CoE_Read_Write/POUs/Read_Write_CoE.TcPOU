@@ -1,0 +1,83 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="Read_Write_CoE" Id="{02294437-6c82-46b7-8b75-146b81df2f51}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM Read_Write_CoE
+VAR
+	fbEcCoESdoRead			: FB_EcCoESdoRead;
+	bReadSensitivity1  : BOOL;
+	FB_EcCoESdoWriteEx		: FB_EcCoESdoWriteEx;
+	bWriteSensitivity1 : BOOL;
+ 	SlaveNetID 	AT %I* 	    : T_AmsNetIdArr;			(* AMS Net ID *)
+	SlavePort  	AT %I*  	    : WORD;				(* Port number *)
+    nIndex          : WORD; (* CANopen Sdo index.*)
+	
+	fSensitivity_Live		    : REAL; 				(* Analog Input Limit 1 *)
+	fSensitivity_ToUpload		    : REAL; 				(* Analog Input Limit 1 *)
+
+	bReadError      : BOOL;
+        nReadErrId      : UDINT;
+	bWriteError     : BOOL;
+        nWriteErrId     : UDINT;
+	tTimeout         : TIME := DEFAULT_ADS_TIMEOUT;
+	fSensitivity1: INT;	
+
+	Upload: BOOL := TRUE;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+(* Read the Analog Input Limit 1 CoE parameter *)
+fbEcCoESdoRead(
+	sNetId:= F_CreateAmsNetId(SlaveNetID), 
+	nSlaveAddr:= SlavePort, 
+	nSubIndex:= 16#16, (* Subindex of CoE Object *)
+	nIndex:= 16#8001 , (* CoE Object Index *)
+	pDstBuf:= ADR(fSensitivity_Live), 
+	cbBufLen:= SIZEOF(fSensitivity_Live), 
+	bExecute:= bReadSensitivity1, 
+	tTimeout:= tTimeout, 
+	bBusy=> , 
+	bError=> bReadError, 
+	nErrId=> nReadErrId, 
+	cbRead=> );
+	
+	
+(* Write to Analog Input Limit 1 CoE parameter *)
+FB_EcCoESdoWriteEx(
+	sNetId:= F_CreateAmsNetId(SlaveNetID), 
+	nSlaveAddr:=SlavePort ,
+	nSubIndex:=16#16, (* Subindex of CoE Object *)
+	nIndex:=16#8001 , (* CoE Object Index *)
+	pSrcBuf:=ADR(fSensitivity_ToUpload) ,
+	cbBufLen:=SIZEOF(fSensitivity_ToUpload) ,
+	bExecute:= bWriteSensitivity1,(* TRUE activate writing *)
+	tTimeout:= tTimeout,
+	bBusy=> ,
+	bError=> ,
+	nErrId=> );
+
+	IF NOT FB_EcCoESdoWriteEx.bBusy THEN
+		bWriteSensitivity1 := FALSE;
+		IF NOT FB_EcCoESdoWriteEx.bError THEN
+			(* write successful *)
+			bWriteError := FALSE;
+			nWriteErrId := 0;
+		ELSE
+			(* write failed *)
+			bWriteError := FB_EcCoESdoWriteEx.bError;
+			nWriteErrId := FB_EcCoESdoWriteEx.nErrId;
+		END_IF
+		FB_EcCoESdoWriteEx(bExecute := FALSE);
+	END_IF
+
+	
+]]></ST>
+    </Implementation>
+    <LineIds Name="Read_Write_CoE">
+      <LineId Id="26" Count="42" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="72" Count="1" />
+      <LineId Id="75" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
